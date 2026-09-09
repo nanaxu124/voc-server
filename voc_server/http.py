@@ -6,7 +6,7 @@ from .chat import llm_chat
 from .config import CORS_ORIGIN, PUBLIC_MCP_TOOLS, ROOT
 from .filters import common_filter_args, query_csv
 from .mcp import call_voc_mcp, list_voc_tools
-from .parsers import parse_intent_report, parse_kpi_report, parse_mix_report, tsv_rows
+from .parsers import parse_intent_report, parse_kpi_report, parse_mix_report, parse_price_report
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -46,10 +46,7 @@ class Handler(SimpleHTTPRequestHandler):
         query = parse_qs(parsed.query)
         try:
             if parsed.path == "/api/mcp/health":
-                self.send_json({
-                    "status": "online",
-                    "supported_tools": [x.get("name") for x in list_voc_tools()],
-                })
+                self.send_json({"status": "online", "supported_tools": [x.get("name") for x in list_voc_tools()]})
                 return
             if parsed.path == "/api/mcp/overview_data":
                 result = call_voc_mcp("voc_npi_kpi", common_filter_args(query))
@@ -72,7 +69,7 @@ class Handler(SimpleHTTPRequestHandler):
                 args = common_filter_args(query)
                 args.pop("fw", None)
                 result = call_voc_mcp("voc_npi_price_related", args)
-                self.send_json({"success": True, "source": result["tool"], "data": {"rows": tsv_rows(result["raw_text"])}, "raw_text": result["raw_text"]})
+                self.send_json({"success": True, "source": result["tool"], "data": parse_price_report(result["raw_text"]), "raw_text": result["raw_text"]})
                 return
         except Exception as exc:
             self.send_error_json(503, exc)
