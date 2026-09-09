@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPI Dashboard</title>
+    <script src="./mcp_client.js"></script>
+    
+    <!-- ========================================================= -->
+    <!-- ⬇️⬇️⬇️ 统一配置区域 (请在这里修改所有参数) ⬇️⬇️⬇️ -->
+    <!-- ========================================================= -->
+    <script>
+        const CONFIG = {
+            // 1. NPI 筛选器 与 产品筛选器 的联动关系 (定义每个 NPI 周期下包含哪些产品)
+            npiToProducts: {
+                "FY26 Spring NPI": ["MacBook Neo", "MacBook Air M5","MacBook Pro M5 Pro/Max","iPhone 17e","iPad Air M4"],
+                "FY25 Fall NPI": ["iPhone 17 Series", "Watch Series","MacBook Pro M5","iPad Pro M5"]
+            },
+
+            // 2. 默认初始状态设置
+            defaultNPI: "FY25 Fall NPI",
+            defaultProduct: "iPhone 17 Series",
+            defaultTab: "Intent details",
+
+            // 3. 滚动按钮 (Tabs) 名称列表
+            tabs: ["Overview", "Intent details", "Product mix", "Price related"],
+
+            // 4. 核心数据映射表：配置每个【产品】对应的【数据更新时间】以及在各个 Tab 下加载的【HTML 文件】
+            productsData: {
+                "iPhone 17 Series": {
+                    dataDate: "2025.09.12",
+                    dashboards: {
+                        "Overview": "npi_overview.html",      // 请替换为你实际的文件名
+                        "Intent details": "npi_intent_details.html", 
+                        "Product mix": "npi_product_mix.html",
+                        "Price related": "npi_price_related.html"
+                    }
+                },
+                "Watch Series": {
+                    dataDate: "2024.11.20",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "MacBook Pro M5": {
+                    dataDate: "2026.03.01",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "iPad Pro M5": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "MacBook Neo": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "MacBook Air M5": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "MacBook Pro M5 Pro/Max": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "iPhone 17e": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                },
+                "iPad Air M4": {
+                    dataDate: "2026.04.15",
+                    dashboards: {
+                        "Overview": "",
+                        "Intent details": "",
+                        "Product mix": "",
+                        "Price related": ""
+                    }
+                }
+            }
+        };
+    </script>
+    <!-- ========================================================= -->
+    <!-- ⬆️⬆️⬆️ 统一配置区域 (修改结束) ⬆️⬆️⬆️ -->
+    <!-- ========================================================= -->
+
+    <style>
+    :root {
+      --bg-page: #f5f5f7;
+      --bg-card: #ffffff;
+      --border-color: #e5e5ea;
+      --text-main: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --text-muted: #86868b;
+      --accent-blue: #0071e3;
+      --accent-blue-subtle: rgba(0, 113, 227, 0.08);
+      --accent-purple: #af52de;
+      --accent-gray: #8e8e93;
+      --accent-green: #34c759;
+      --accent-red: #ff3b30;
+      --bar-bg: #eef0f4;
+    }
+
+        /* 基础重置与背景 */
+        body, html { margin: 0; padding: 0; height: 100%; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        
+        
+        /* MCP 实时指示器与取数组件样式 */
+        .mcp-live-bar { display: flex; align-items: center; gap: 12px; }
+        .mcp-status-pill {
+            display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+            border-radius: 12px; font-size: 12px; font-weight: 500;
+            background: #eef9f2; color: #1b873f; border: 1px solid #c2ebd0;
+            transition: all 0.2s ease;
+        }
+        .mcp-status-pill.offline { background: #fdf2f2; color: #d32f2f; border-color: #f8c8c8; }
+        .mcp-dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; box-shadow: 0 0 6px #34c759; animation: mcpPulse 2s infinite; }
+        .mcp-status-pill.offline .mcp-dot { background: #ff3b30; box-shadow: none; animation: none; }
+        @keyframes mcpPulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .mcp-btn {
+            background: linear-gradient(135deg, #0071e3 0%, #5856d6 100%);
+            color: #ffffff; border: none; padding: 5px 12px; border-radius: 6px;
+            font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex;
+            align-items: center; gap: 5px; transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(0, 113, 227, 0.25);
+        }
+        .mcp-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0, 113, 227, 0.35); }
+
+        /* MCP 实时数据弹窗 (Modal) */
+        .mcp-modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px);
+            z-index: 99999; justify-content: center; align-items: center;
+        }
+        .mcp-modal-overlay.show { display: flex; }
+        .mcp-modal-box {
+            background: #ffffff; width: 940px; max-width: 95vw; max-height: 85vh;
+            border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; overflow: hidden;
+            border: 1px solid #e5e5ea;
+        }
+        .mcp-modal-header {
+            padding: 18px 24px; border-bottom: 1px solid #eaeaea;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #fbfbfd;
+        }
+        .mcp-modal-title { font-size: 17px; font-weight: 700; color: #1d1d1f; display: flex; align-items: center; gap: 8px; }
+        .mcp-modal-tabs {
+            display: flex; gap: 8px; padding: 10px 24px; background: #f5f5f7;
+            border-bottom: 1px solid #eaeaea; overflow-x: auto;
+        }
+        .mcp-modal-tab-btn {
+            background: transparent; border: 1px solid transparent; padding: 6px 14px;
+            border-radius: 8px; font-size: 13px; font-weight: 600; color: #666;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .mcp-modal-tab-btn.active {
+            background: #ffffff; color: #0071e3; border-color: #d1d1d6;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .mcp-modal-body {
+            flex: 1; padding: 20px 24px; overflow-y: auto; background: #ffffff;
+            font-size: 13px; line-height: 1.6;
+        }
+        .mcp-table {
+            width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px;
+        }
+        .mcp-table th {
+            background: #f5f6fa; color: #555; text-align: left; padding: 8px 12px;
+            border-bottom: 2px solid #e1e4ea; font-weight: 600;
+        }
+        .mcp-table td {
+            padding: 8px 12px; border-bottom: 1px solid #f0f0f4; color: #333;
+        }
+        .mcp-table tr:hover td { background: #fafafc; }
+        .mcp-code-block {
+            background: #1e1e24; color: #e6e6e6; padding: 14px 16px; border-radius: 8px;
+            font-family: monospace; font-size: 12px; overflow-x: auto; white-space: pre-wrap;
+        }
+        .mcp-stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .mcp-stat-card {
+            background: #f8f9fa; border: 1px solid #eaeaea; border-radius: 10px; padding: 12px 14px;
+        }
+        .mcp-stat-num { font-size: 20px; font-weight: 700; color: #1d1d1f; margin-top: 4px; }
+
+        /* 顶部状态栏 */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 40px; background-color: #f8f9fa; border-bottom: 1px solid #eaeaea; font-size: 14px; }
+        .dropdown-group { display: flex; gap: 24px; }
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-btn { background: none; border: none; font-weight: 600; color: #1d1d1f; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 14px; }
+        .dropdown-btn:hover { color: #0066cc; }
+        .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background-color: #ffffff; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 8px; z-index: 100; padding: 8px 0; margin-top: 8px; border: 1px solid #eaeaea; }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu a { color: #444; padding: 10px 16px; text-decoration: none; display: block; font-size: 13px; transition: background-color 0.2s; }
+        .dropdown-menu a:hover { background-color: #f5f5f7; color: #1d1d1f; }
+        .data-date { color: #666; font-style: italic; font-size: 13px; }
+        
+        /* 导航栏区域 */
+        .nav-container { display: flex; justify-content: center; padding: 20px 40px; position: relative; }
+        .nav-content { display: flex; justify-content: center; align-items: center; width: 100%; max-width: 1200px; position: relative; }
+        .tabs { display: inline-flex; background-color: #ffffff; border-radius: 50px; padding: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .tab-btn { border: none; background: transparent; padding: 10px 24px; color: #666666; font-weight: 600; font-size: 15px; cursor: pointer; border-radius: 50px; transition: all 0.3s ease; outline: none; }
+        .tab-btn:hover:not(.active) { color: #333333; }
+        .tab-btn.active { background: linear-gradient(90deg, #4b9fff, #5dc4ff); color: #ffffff; box-shadow: 0 4px 10px rgba(75, 159, 255, 0.3); }
+        
+        /* 右侧语言切换 */
+        /* .lang-switch { position: absolute; right: 0; display: flex; background: #ffffff; border-radius: 6px; border: 1px solid #eaeaea; overflow: hidden; }
+        .lang-btn { background: transparent; border: none; padding: 6px 12px; font-size: 13px; color: #666; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .lang-btn.active { background: #eef5ff; color: #0066cc; } */
+        
+        /* Iframe 看板区域 */
+        .content-area { width: 100%; height: calc(100vh - 140px); border: none; display: block; }
+    
+/* ============================================================
+       7. AI 提问悬浮气泡 & 右侧智能问答抽屉 (全维度 JSON 深度解析引擎)
+       ============================================================ */
+    body {
+      transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    body.ai-drawer-open {
+      padding-right: 480px;
+    }
+
+    .app-container {
+      transition: max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.ai-drawer-open .app-container {
+      max-width: 1140px;
+    }
+
+    /* AI 悬浮气泡按钮 */
+    .ai-bubble-btn {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 22px;
+      border-radius: 40px;
+      background: linear-gradient(135deg, #0071e3 0%, #af52de 50%, #ff2d55 100%);
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 10px 28px rgba(175, 82, 222, 0.4), 0 2px 10px rgba(0, 113, 227, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      backdrop-filter: blur(20px);
+      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+    }
+
+    .ai-bubble-btn:hover {
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 14px 36px rgba(175, 82, 222, 0.55), 0 4px 14px rgba(0, 113, 227, 0.4);
+    }
+
+    .ai-bubble-btn:active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    body.ai-drawer-open .ai-bubble-btn {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(20px) scale(0.8);
+    }
+
+    .ai-bubble-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: aiSparkle 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes aiSparkle {
+      0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 2px rgba(255,255,255,0.6)); }
+      50% { transform: rotate(8deg) scale(1.12); filter: drop-shadow(0 0 6px rgba(255,255,255,0.9)); }
+      100% { transform: rotate(-8deg) scale(1); filter: drop-shadow(0 0 2px rgba(255,255,255,0.6)); }
+    }
+
+    .ai-bubble-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .ai-bubble-tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.25);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+
+    /* 右侧 AI 问答抽屉 */
+    .ai-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 460px;
+      background: #ffffff;
+      border-left: 1px solid var(--border-color);
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.09);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.ai-drawer-open .ai-drawer {
+      transform: translateX(0);
+    }
+
+    /* 抽屉头部 */
+    .ai-drawer-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(248, 249, 252, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%);
+      backdrop-filter: blur(12px);
+    }
+
+    .ai-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ai-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0071e3 0%, #af52de 50%, #ff2d55 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(175, 82, 222, 0.3);
+    }
+
+    .ai-header-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .ai-header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-header-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .ai-live-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: #0071e3;
+      background: rgba(0, 113, 227, 0.09);
+      padding: 1.5px 6px;
+      border-radius: 6px;
+    }
+
+    .ai-header-subtitle {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+
+    .ai-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-btn-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .ai-btn-icon:hover {
+      background: #f5f5f7;
+      color: var(--text-main);
+      border-color: #d1d1d6;
+    }
+
+    /* 快捷提问横向滚动栏 */
+    .ai-quick-bar {
+      padding: 10px 16px;
+      background: #fafafc;
+      border-bottom: 1px solid var(--border-color);
+      overflow-x: auto;
+      white-space: nowrap;
+      display: flex;
+      gap: 8px;
+      scrollbar-width: none;
+    }
+
+    .ai-quick-bar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .ai-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #3a3a3c;
+      background: #ffffff;
+      border: 1px solid #e5e5ea;
+      padding: 5px 11px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .ai-chip:hover {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
+
+    /* 对话内容区域 */
+    .ai-messages-container {
+      flex: 1;
+      padding: 18px 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #ffffff;
+    }
+
+    .ai-msg-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .ai-msg-row.user {
+      justify-content: flex-end;
+    }
+
+    .ai-msg-bubble {
+      max-width: 93%;
+      padding: 13px 16px;
+      border-radius: 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      position: relative;
+      word-break: break-word;
+    }
+
+    .ai-msg-row.user .ai-msg-bubble {
+      background: #0071e3 !important;
+      color: #ffffff !important;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 3px 12px rgba(0, 113, 227, 0.3);
+      font-size: 13.5px;
+      font-weight: 500;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .ai-msg-row.assistant .ai-msg-bubble {
+      background: #f7f8fa !important;
+      color: #1d1d1f !important;
+      border: 1px solid #ebedf2 !important;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+      font-size: 13px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    /* 直接式回答卡片与意图/原声聚类组件 */
+    .ai-direct-banner {
+      background: linear-gradient(135deg, rgba(0, 113, 227, 0.08) 0%, rgba(175, 82, 222, 0.08) 100%);
+      border: 1px solid rgba(0, 113, 227, 0.25);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+
+    .ai-direct-banner-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .ai-direct-banner-val {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1d1d1f;
+      letter-spacing: -0.02em;
+      margin: 4px 0 2px 0;
+    }
+
+    .ai-direct-banner-desc {
+      font-size: 12px;
+      color: #48484a;
+      line-height: 1.45;
+    }
+
+    .ai-cluster-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .ai-cluster-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 11px 13px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .ai-cluster-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .ai-cluster-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1d1d1f;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-cluster-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-cluster-badge {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 1.5px 6px;
+      border-radius: 6px;
+      background: rgba(0, 113, 227, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .ai-cluster-badge.green {
+      background: rgba(52, 199, 89, 0.12);
+      color: #2e7d32;
+    }
+
+    .ai-cluster-badge.orange {
+      background: rgba(255, 149, 0, 0.12);
+      color: #e65100;
+    }
+
+    .ai-bar-track {
+      height: 4px;
+      background: #eef0f4;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .ai-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0071e3, #af52de);
+      border-radius: 2px;
+    }
+
+    .ai-quotes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: #f8f9fc;
+      border-radius: 6px;
+      padding: 7px 9px;
+      border-left: 3px solid #af52de;
+    }
+
+    .ai-quote-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: #333336;
+      line-height: 1.4;
+    }
+
+    .ai-quote-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+
+    .ai-quote-count {
+      font-size: 10px;
+      font-weight: 600;
+      color: #8e8e93;
+      flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .ai-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .ai-stat-item {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ai-stat-label {
+      font-size: 10.5px;
+      color: var(--text-secondary);
+    }
+
+    .ai-stat-val {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .ai-stat-sub {
+      font-size: 10px;
+      color: var(--accent-green);
+      font-weight: 500;
+    }
+
+    .ai-mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      margin: 8px 0;
+    }
+
+    .ai-mini-table th {
+      text-align: left;
+      padding: 5px 6px;
+      background: #eceff5;
+      color: var(--text-secondary);
+      font-weight: 600;
+      border-radius: 4px;
+    }
+
+    .ai-mini-table td {
+      padding: 5px 6px;
+      border-bottom: 1px solid #f0f0f2;
+    }
+
+    .ai-insight-bullet {
+      margin-top: 10px;
+      padding-left: 10px;
+      border-left: 2.5px solid var(--accent-blue);
+      font-size: 12px;
+      color: #48484a;
+      line-height: 1.5;
+    }
+
+    /* 输入区域 */
+    .ai-input-wrapper {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border-color);
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ai-input-bar {
+      display: flex;
+      align-items: center;
+      background: #f5f6fa;
+      border: 1px solid #e1e4ea;
+      border-radius: 24px;
+      padding: 4px 6px 4px 14px;
+      transition: all 0.2s ease;
+    }
+
+    .ai-input-bar:focus-within {
+      border-color: var(--accent-blue);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+    }
+
+    .ai-input-field {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 13px;
+      color: var(--text-main);
+      padding: 6px 0;
+    }
+
+    .ai-input-field::placeholder {
+      color: #a1a1a6;
+    }
+
+    .ai-send-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent-blue);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .ai-send-btn:hover {
+      background: #0077ed;
+      transform: scale(1.06);
+    }
+
+    .ai-send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .ai-input-hint {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+
+    /* 全局悬浮气泡 Tooltip (最高 z-index，视口浮动避免遮挡) */
+    .global-bar-floating-tooltip {
+      position: fixed;
+      display: none;
+      background: rgba(29, 29, 31, 0.96);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      width: 320px;
+      max-width: 90vw;
+      z-index: 999999;
+      pointer-events: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    .global-bar-floating-tooltip.show {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .tooltip-header {
+      font-weight: 600;
+      color: #409cff;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tooltip-q-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .tooltip-q-item {
+      color: #f2f2f7;
+      font-size: 10.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+
+  
+    
+
+  
+    </style>
+</head>
+<body>
+
+    <!-- 顶部状态栏 (容器由 JS 注入内容) -->
+    <div class="top-bar">
+        <div class="dropdown-group">
+            <div class="dropdown" id="filter1-container"></div>
+            <div class="dropdown" id="filter2-container"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="data-date" id="data-date-container"></div>
+            <div class="mcp-live-bar">
+                <span class="mcp-status-pill" id="mcp-pill">
+                    <span class="mcp-dot"></span>
+                    <span id="mcp-status-text">VOC MCP 直连</span>
+                </span>
+                <button class="mcp-btn" onclick="openMCPModal()">⚡ 实时取数面板</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 顶部导航栏 (容器由 JS 注入内容) -->
+    <div class="nav-container">
+        <div class="nav-content">
+            <div class="tabs" id="tabs-container"></div>
+            <div class="lang-switch">
+                <button class="lang-btn">EN</button>
+                <button class="lang-btn active">中</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 承载实际 Dashboard 的 iframe -->
+    <iframe id="dashboard-frame" class="content-area" src=""></iframe>
+
+    <script>
+        // SVG 下拉箭头图标
+        const svgArrow = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+
+        // === 全局状态变量 ===
+        let currentNPI = CONFIG.defaultNPI;
+        let currentProduct = CONFIG.defaultProduct;
+        let currentTab = CONFIG.defaultTab;
+
+        // === 初始化 ===
+        function init() {
+            renderNPI();
+            renderProduct();
+            renderTabs();
+            updateDashboard();
+        }
+
+        // === 1. 渲染 NPI 下拉菜单 ===
+        function renderNPI() {
+            const npiList = Object.keys(CONFIG.npiToProducts);
+            const menuHtml = npiList.map(npi => 
+                `<a href="#" onclick="selectNPI('${npi}'); return false;">${npi}</a>`
+            ).join('');
+            
+            document.getElementById('filter1-container').innerHTML = `
+                <button class="dropdown-btn" onclick="toggleDropdown('menu-1', event)">
+                    <span id="selected-npi">${currentNPI}</span> ${svgArrow}
+                </button>
+                <div class="dropdown-menu" id="menu-1">${menuHtml}</div>
+            `;
+        }
+
+        // === 2. 渲染 产品 下拉菜单 (根据当前的 NPI 动态生成) ===
+        function renderProduct() {
+            const productList = CONFIG.npiToProducts[currentNPI] || [];
+            const menuHtml = productList.map(prod => 
+                `<a href="#" onclick="selectProduct('${prod}'); return false;">${prod}</a>`
+            ).join('');
+
+            document.getElementById('filter2-container').innerHTML = `
+                <button class="dropdown-btn" onclick="toggleDropdown('menu-2', event)">
+                    <span id="selected-product">${currentProduct}</span> ${svgArrow}
+                </button>
+                <div class="dropdown-menu" id="menu-2">${menuHtml}</div>
+            `;
+        }
+
+        // === 3. 渲染 Tab 导航条 ===
+        function renderTabs() {
+            const tabsHTML = CONFIG.tabs.map(tabName => {
+                const isActive = tabName === currentTab ? 'active' : '';
+                return `<button class="tab-btn ${isActive}" onclick="selectTab('${tabName}', this)">${tabName}</button>`;
+            }).join('');
+            document.getElementById('tabs-container').innerHTML = tabsHTML;
+        }
+
+        // === 4. 核心：更新看板内容与数据日期 ===
+        function updateDashboard() {
+            const productData = CONFIG.productsData[currentProduct];
+            if (productData) {
+                const targetHtmlFile = productData.dashboards[currentTab];
+                const iframe = document.getElementById('dashboard-frame');
+                const dateContainer = document.getElementById('data-date-container');
+
+                dateContainer.innerText = `Data loading...`;
+
+                if(targetHtmlFile) {
+                    iframe.src = targetHtmlFile;
+                    iframe.onload = function() {
+                        try {
+                            const doc = iframe.contentDocument || iframe.contentWindow.document;
+                            const timestampEl = doc.getElementById('data-timestamp');
+                            if (timestampEl && timestampEl.innerText) {
+                                dateContainer.innerText = timestampEl.innerText;
+                            } else {
+                                dateContainer.innerText = `Data as of ${productData.dataDate}`;
+                            }
+                        } catch(e) {
+                            dateContainer.innerText = `Data as of ${productData.dataDate}`;
+                        }
+                    };
+                } else {
+                    iframe.src = "about:blank";
+                    dateContainer.innerText = ``;
+                }
+            }
+        }
+
+        // ================= 交互动作绑定 =================
+
+        // 选中某个 NPI 节点
+        function selectNPI(npi) {
+            currentNPI = npi;
+            
+            // 【级联逻辑】判断当前选中的产品是否在新的 NPI 列表中
+            const availableProducts = CONFIG.npiToProducts[npi];
+            if (!availableProducts.includes(currentProduct)) {
+                // 如果不在，自动切换到新 NPI 列表的第一个产品
+                currentProduct = availableProducts[0];
+            }
+            
+            // 隐藏菜单并更新文字
+            document.getElementById('menu-1').classList.remove('show');
+            document.getElementById('selected-npi').innerText = currentNPI;
+            
+            renderProduct();   // 重新渲染产品列表（因为 NPI 变了，产品列表也要变）
+            updateDashboard(); // 刷新看板内容与时间
+        }
+
+        // 选中某个产品
+        function selectProduct(product) {
+            currentProduct = product;
+            
+            document.getElementById('menu-2').classList.remove('show');
+            document.getElementById('selected-product').innerText = currentProduct;
+            
+            updateDashboard(); // 刷新看板内容与时间
+        }
+
+        // 选中某个 Tab 标签
+        function selectTab(tabName, btnElement) {
+            currentTab = tabName;
+            
+            // 按钮高亮切换
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            
+            updateDashboard(); // 切换 Tab 时加载对应页面
+        }
+
+        // 下拉菜单显示/隐藏通用逻辑
+        function toggleDropdown(menuId, event) {
+            event.stopPropagation();
+            // 点击时先关闭其他所有打开的菜单
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                if (menu.id !== menuId) menu.classList.remove('show');
+            });
+            document.getElementById(menuId).classList.toggle('show');
+        }
+
+        // 点击页面任意空白处，收起所有下拉菜单
+        window.onclick = function(event) {
+            if (!event.target.closest('.dropdown-btn')) {
+                document.querySelectorAll('.dropdown-menu.show').forEach(menu => menu.classList.remove('show'));
+            }
+        }
+
+        // 语言切换按钮纯UI效果
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // 页面加载完毕后启动
+        init();
+        initMCP();
+
+    // =========================================================
+    // VOC MCP 实时直连核心逻辑
+    // =========================================================
+    let currentMCPTab = 'kpi';
+
+    async function initMCP() {
+        const pill = document.getElementById('mcp-pill');
+        const text = document.getElementById('mcp-status-text');
+        if (!pill || !text) return;
+
+        try {
+            const health = await vocMCP.checkHealth();
+            if (health.ok) {
+                pill.classList.remove('offline');
+                pill.classList.add('online');
+                text.innerText = "VOC MCP 直连 (" + health.latency + "ms)";
+            } else {
+                pill.classList.add('offline');
+                text.innerText = "VOC MCP 离线";
+            }
+        } catch(e) {
+            pill.classList.add('offline');
+            text.innerText = "VOC MCP 异常";
+        }
+    }
+
+    function openMCPModal() {
+        document.getElementById('mcp-modal').classList.add('show');
+        loadMCPTab(currentMCPTab);
+    }
+
+    function closeMCPModal() {
+        document.getElementById('mcp-modal').classList.remove('show');
+    }
+
+    function switchMCPTab(tabName, btn) {
+        currentMCPTab = tabName;
+        document.querySelectorAll('.mcp-modal-tab-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        loadMCPTab(tabName);
+    }
+
+    function refreshCurrentMCPTab() {
+        loadMCPTab(currentMCPTab);
+    }
+
+    async function loadMCPTab(tabName) {
+        const body = document.getElementById('mcp-modal-body');
+        body.innerHTML = '<div style="color: #0071e3; text-align: center; padding: 40px;"><span class="mcp-dot" style="display: inline-block; margin-right: 8px;"></span>正在向 VOC MCP 请求实时数据...</div>';
+
+        try {
+            if (tabName === 'kpi') {
+                const res = await vocMCP.getKPI('iPhone');
+                const kpis = res.parsed.kpiSummary;
+                let html = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+                    '<span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">NPI VOC 核心口径指标 (工具: voc_npi_kpi)</span>' +
+                    '<span class="ai-live-badge">耗时: ' + res.durationMs + 'ms</span>' +
+                    '</div>' +
+                    '<div class="mcp-stat-row">' +
+                        '<div class="mcp-stat-card">' +
+                            '<div style="color: #666; font-size: 12px;">NPI Customers (客流)</div>' +
+                            '<div class="mcp-stat-num">' + (kpis.customers ? Number(kpis.customers.npi).toLocaleString() : '--') + '</div>' +
+                            '<div style="font-size: 11px; color: #34c759; margin-top: 2px;">LoL: ' + (kpis.customers ? kpis.customers.lol : '--') + '</div>' +
+                        '</div>' +
+                        '<div class="mcp-stat-card">' +
+                            '<div style="color: #666; font-size: 12px;">NPI Inquiries (问题量)</div>' +
+                            '<div class="mcp-stat-num">' + (kpis.inquiries ? Number(kpis.inquiries.npi).toLocaleString() : '--') + '</div>' +
+                            '<div style="font-size: 11px; color: #34c759; margin-top: 2px;">LoL: ' + (kpis.inquiries ? kpis.inquiries.lol : '--') + '</div>' +
+                        '</div>' +
+                        '<div class="mcp-stat-card">' +
+                            '<div style="color: #666; font-size: 12px;">CVR 转化率</div>' +
+                            '<div class="mcp-stat-num">' + (kpis.cvr ? kpis.cvr.npi : '--') + '</div>' +
+                            '<div style="font-size: 11px; color: #0071e3; margin-top: 2px;">LoL: ' + (kpis.cvr ? kpis.cvr.lol : '--') + '</div>' +
+                        '</div>' +
+                        '<div class="mcp-stat-card">' +
+                            '<div style="color: #666; font-size: 12px;">N-1 对标客流</div>' +
+                            '<div class="mcp-stat-num">' + (kpis.customers ? Number(kpis.customers.n1).toLocaleString() : '--') + '</div>' +
+                            '<div style="font-size: 11px; color: #86868b; margin-top: 2px;">同期在售/去年</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="font-weight: 600; margin-top: 20px; font-size: 13.5px;">📄 MCP 原始响应文本摘要:</div>' +
+                    '<div class="mcp-code-block" style="max-height: 280px;">' + escapeHtml(res.rawText) + '</div>';
+                body.innerHTML = html;
+            } else if (tabName === 'inquiries') {
+                const res = await vocMCP.searchInquiries('', 'iPhone', 25);
+                let rowsHtml = res.rows.map(r => 
+                    '<tr>' +
+                        '<td style="font-weight: 600; color: #0071e3;">' + escapeHtml(r.inquiry_name || '') + '</td>' +
+                        '<td style="font-weight: 700;">' + Number(r.count || 0).toLocaleString() + '</td>' +
+                        '<td>' + escapeHtml(r.prod_name || '') + '</td>' +
+                        '<td>' + escapeHtml(r.data_date || '') + '</td>' +
+                        '<td style="color: #666; font-size: 11.5px;">' + escapeHtml(r.intent_path || '') + '</td>' +
+                    '</tr>'
+                ).join('');
+                body.innerHTML = 
+                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+                        '<span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">高频原声问句 TOP 榜 (工具: search_inquiries)</span>' +
+                        '<span class="ai-live-badge">耗时: ' + res.durationMs + 'ms</span>' +
+                    '</div>' +
+                    '<table class="mcp-table">' +
+                        '<thead><tr><th>原声问句</th><th>出现频次</th><th>产品</th><th>业务日期</th><th>意图归属路径</th></tr></thead>' +
+                        '<tbody>' + rowsHtml + '</tbody>' +
+                    '</table>';
+            } else if (tabName === 'price') {
+                const res = await vocMCP.getPriceRelated('iPhone');
+                body.innerHTML = 
+                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+                        '<span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">价格相关咨询报告 (工具: voc_npi_price_related)</span>' +
+                        '<span class="ai-live-badge">耗时: ' + res.durationMs + 'ms</span>' +
+                    '</div>' +
+                    '<div class="mcp-code-block" style="max-height: 380px;">' + escapeHtml(res.rawText) + '</div>';
+            } else if (tabName === 'mix') {
+                const sql = "SELECT p.prod_name, m->>'memory' AS memory, m->>'color' AS color, SUM((m->>'quantity')::bigint) AS total FROM voc_push_latest p, jsonb_array_elements(p.payload->'mixList') m WHERE p.prod_type = 'iPhone' GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 20;";
+                const res = await vocMCP.queryVOC(sql);
+                let rowsHtml = res.rows.map(r => 
+                    '<tr>' +
+                        '<td style="font-weight: 600;">' + escapeHtml(r.prod_name || '') + '</td>' +
+                        '<td><span class="ai-cluster-badge">' + escapeHtml(r.memory || '') + '</span></td>' +
+                        '<td>' + escapeHtml(r.color || '') + '</td>' +
+                        '<td style="font-weight: 700; color: #1d1d1f;">' + Number(r.total || 0).toLocaleString() + '</td>' +
+                    '</tr>'
+                ).join('');
+                body.innerHTML = 
+                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+                        '<span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">产品规格 mixList 实时聚合 (工具: query_voc)</span>' +
+                        '<span class="ai-live-badge">耗时: ' + res.durationMs + 'ms</span>' +
+                    '</div>' +
+                    '<table class="mcp-table">' +
+                        '<thead><tr><th>机型</th><th>存储容量</th><th>机身颜色</th><th>咨询/订单量</th></tr></thead>' +
+                        '<tbody>' + rowsHtml + '</tbody>' +
+                    '</table>';
+            } else if (tabName === 'dimensions') {
+                const res = await vocMCP.getDimensions('iPhone');
+                body.innerHTML = 
+                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+                        '<span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">VOC 可用筛选维度 (工具: voc_dimensions)</span>' +
+                        '<span class="ai-live-badge">耗时: ' + res.durationMs + 'ms</span>' +
+                    '</div>' +
+                    '<div class="mcp-code-block" style="max-height: 380px;">' + escapeHtml(res.rawText) + '</div>';
+            }
+        } catch(err) {
+            body.innerHTML = '<div style="color: #ff3b30; padding: 20px;">调用 MCP 出现错误: ' + escapeHtml(err.message) + '</div>';
+        }
+    }
+
+    
+    // Simple markdown renderer for AI responses
+    function renderMarkdownToHTML(md) {
+        if (!md) return '';
+        let html = md;
+        // Escape HTML entities safely first
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Headers
+        html = html.replace(/^### (.*$)/gim, '<h4 style="font-size:13.5px; font-weight:700; margin:10px 0 4px 0; color:#1d1d1f;">$1</h4>');
+        html = html.replace(/^## (.*$)/gim, '<h3 style="font-size:14.5px; font-weight:700; margin:12px 0 6px 0; color:#0071e3; border-bottom:1px solid #eaeaea; padding-bottom:3px;">$1</h3>');
+        html = html.replace(/^# (.*$)/gim, '<h2 style="font-size:16px; font-weight:700; margin:14px 0 8px 0; color:#1d1d1f;">$1</h2>');
+        
+        // Bold
+        html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+        // Italic
+        html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+        
+        // Blockquotes
+        html = html.replace(/^\> (.*$)/gim, '<div style="border-left: 3px solid #0071e3; padding-left: 8px; margin: 6px 0; color: #555; font-style: italic;">$1</div>');
+        
+        // Unordered lists
+        html = html.replace(/^[-*] (.*$)/gim, '<li style="margin-left: 16px; margin-bottom: 3px;">$1</li>');
+        
+        // Tables (Markdown pipe tables)
+        const lines = html.split('\n');
+        let inTable = false;
+        let tableRows = [];
+        let newLines = [];
+        
+        for (let line of lines) {
+            if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+                inTable = true;
+                const cols = line.trim().slice(1, -1).split('|').map(c => c.trim());
+                // Skip separator rows like |---|---|
+                if (cols.some(c => c.match(/^:?-+:?$/))) {
+                    continue;
+                }
+                tableRows.push(cols);
+            } else {
+                if (inTable) {
+                    if (tableRows.length > 0) {
+                        let tableHtml = '<table class="ai-mini-table" style="margin: 8px 0; width: 100%; font-size: 11.5px; border-collapse: collapse;">';
+                        tableRows.forEach((r, idx) => {
+                            tableHtml += '<tr>';
+                            r.forEach(cell => {
+                                const tag = idx === 0 ? 'th' : 'td';
+                                const style = idx === 0 ? 'background:#eef2f7; font-weight:600; padding:4px 6px;' : 'padding:4px 6px; border-bottom:1px solid #eee;';
+                                tableHtml += `<${tag} style="${style}">${cell}</${tag}>`;
+                            });
+                            tableHtml += '</tr>';
+                        });
+                        tableHtml += '</table>';
+                        newLines.push(tableHtml);
+                    }
+                    inTable = false;
+                    tableRows = [];
+                }
+                newLines.push(line);
+            }
+        }
+        if (inTable && tableRows.length > 0) {
+            let tableHtml = '<table class="ai-mini-table" style="margin: 8px 0; width: 100%; font-size: 11.5px; border-collapse: collapse;">';
+            tableRows.forEach((r, idx) => {
+                tableHtml += '<tr>';
+                r.forEach(cell => {
+                    const tag = idx === 0 ? 'th' : 'td';
+                    const style = idx === 0 ? 'background:#eef2f7; font-weight:600; padding:4px 6px;' : 'padding:4px 6px; border-bottom:1px solid #eee;';
+                    tableHtml += `<${tag} style="${style}">${cell}</${tag}>`;
+                });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</table>';
+            newLines.push(tableHtml);
+        }
+        
+        html = newLines.join('<br/>');
+        return html;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    
+function toggleAIChat() {
+      const isCurrentlyOpen = document.body.classList.contains('ai-drawer-open');
+      if (isCurrentlyOpen) {
+        document.body.classList.remove('ai-drawer-open');
+      } else {
+        document.body.classList.add('ai-drawer-open');
+        setTimeout(() => {
+          const input = document.getElementById('ai-input-field');
+          if (input) input.focus();
+          window.dispatchEvent(new Event('resize'));
+        }, 150);
+      }
+    }
+
+function clearAIChat() {
+      const container = document.getElementById('ai-messages-container');
+      container.innerHTML = `
+        <div class="ai-msg-row assistant">
+          <div class="ai-msg-bubble">
+            <p>对话已清空。您可以随时向我提问关于 <strong>NPI VOC 全量数据</strong> 的任何问题！</p>
+          </div>
+        </div>
+      `;
+    }
+
+function askQuickPrompt(text) {
+      const input = document.getElementById('ai-input-field');
+      input.value = text;
+      sendUserMessage();
+    }
+
+function handleAIKeyDown(e) {
+      if (e.key === 'Enter') {
+        sendUserMessage();
+      }
+    }
+
+function appendMessage(role, content) {
+      const container = document.getElementById('ai-messages-container');
+      const row = document.createElement('div');
+      row.className = `ai-msg-row ${role}`;
+      const bubble = document.createElement('div');
+      bubble.className = 'ai-msg-bubble';
+      
+      if (role === 'user') {
+          bubble.textContent = content; // 确保用户输入文本直接显示，不被 HTML 解析异常拦截
+      } else {
+          bubble.innerHTML = content;
+      }
+      row.appendChild(bubble);
+      container.appendChild(row);
+      container.scrollTop = container.scrollHeight;
+    }
+
+        async function sendUserMessage() {
+      const input = document.getElementById('ai-input-field');
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage('user', text);
+      input.value = '';
+
+      const modelSelect = document.getElementById('ai-model-select');
+      const selectedModel = modelSelect ? modelSelect.value : 'endor-deepseek-v3.2';
+      const modelName = modelSelect ? modelSelect.options[modelSelect.selectedIndex].text : selectedModel;
+
+      const container = document.getElementById('ai-messages-container');
+      const loadingId = 'ai-loading-' + Date.now();
+      const loadingRow = document.createElement('div');
+      loadingRow.className = 'ai-msg-row assistant';
+      loadingRow.id = loadingId;
+      loadingRow.innerHTML = '<div class="ai-msg-bubble" style="color: var(--text-secondary); font-size: 12px; display: flex; align-items: center; gap: 8px;">' +
+        '<span class="node-dot" style="width: 10px; height: 10px; display: inline-block; animation: pulse 1s infinite;"></span>' +
+        '正在调用 ' + modelName + ' + VOC MCP 实时推理...' +
+      '</div>';
+      container.appendChild(loadingRow);
+      container.scrollTop = container.scrollHeight;
+
+      let responseHtml = '';
+      try {
+          // 调用后端集成的 LLM + VOC RAG 接口
+          const chatRes = await vocMCP.chatWithLLM(text, selectedModel);
+          const el = document.getElementById(loadingId);
+          if (el) el.remove();
+
+          if (chatRes && chatRes.success) {
+              const formattedContent = renderMarkdownToHTML(chatRes.answer);
+              const toolBadge = chatRes.voc_tool ? `<span class="ai-cluster-badge" style="font-size:10px;">MCP数据: ${chatRes.voc_tool}</span>` : '';
+              const fallbackNotice = chatRes.fallback_note ? `<div style="color:#d97706; font-size:11px; margin-bottom:6px;">⚠️ ${chatRes.fallback_note}</div>` : '';
+
+              responseHtml = `
+                  <div class="ai-direct-banner" style="margin-bottom:8px;">
+                      <div class="ai-direct-banner-title" style="display:flex; justify-content:space-between; align-items:center;">
+                          <span>🤖 ${chatRes.model_used} 深度分析</span>
+                          ${toolBadge}
+                      </div>
+                  </div>
+                  ${fallbackNotice}
+                  <div style="font-size:12.8px; line-height:1.6; color:#1d1d1f;">
+                      ${formattedContent}
+                  </div>
+              `;
+              appendMessage('assistant', responseHtml);
+              return;
+          }
+      } catch (err) {
+          console.warn('[LLM Chat Fallback to Local Query]', err);
+      }
+
+      // 回退逻辑
+      const el = document.getElementById(loadingId);
+      if (el) el.remove();
+
+      const iframe = document.getElementById('dashboard-frame');
+      try {
+          if (iframe.contentWindow && iframe.contentWindow.processFullJSONQuery) {
+              responseHtml = iframe.contentWindow.processFullJSONQuery(text);
+          } else {
+              responseHtml = '<div class="ai-direct-banner"><div class="ai-direct-banner-title">系统提示</div><div class="ai-direct-banner-desc">大模型响应异常，且子页面引擎暂不可用。</div></div>';
+          }
+      } catch (e) {
+          responseHtml = "无法连接到数据分析引擎：" + e.message;
+      }
+      appendMessage('assistant', responseHtml);
+    }
+
+
+
+    </script>
+
+<!-- AI 提问悬浮气泡按钮 -->
+  <div class="ai-bubble-btn" id="ai-bubble-btn" onclick="toggleAIChat()" title="点击开启 AI 智能问答">
+    <div class="ai-bubble-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </div>
+    <span class="ai-bubble-title">AI 智能问答</span>
+    <span class="ai-bubble-tag">VOC</span>
+  </div>
+
+  <!-- 右侧 AI 问答抽屉 -->
+  <aside class="ai-drawer" id="ai-drawer">
+    <!-- 头部 -->
+    <div class="ai-drawer-header">
+      <div class="ai-header-left">
+        <div class="ai-avatar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="ai-header-info">
+          <div class="ai-header-title-row" style="display: flex; align-items: center; gap: 8px;">
+            <span class="ai-header-title">VOC 智能分析助手</span>
+            <select id="ai-model-select" style="font-size: 11px; padding: 2px 6px; border-radius: 6px; border: 1px solid #d1d1d6; background: #fff; color: #0071e3; font-weight: 600; outline: none; cursor: pointer;">
+              <option value="endor-deepseek-v3.2">🤖 DeepSeek-V3.2 (默认)</option>
+              <option value="endor-minimax-m2.5">🤖 MiniMax-M2.5</option>
+              <option value="endor-glm-5">🤖 GLM-5</option>
+              <option value="gemini-2.5-flash">🤖 Gemini-2.5-Flash</option>
+            </select>
+          </div>
+          <div class="ai-header-subtitle">mixList颜色内存 · 意图原声聚类 · 精准计算</div>
+        </div>
+      </div>
+      <div class="ai-header-actions">
+        <button class="ai-btn-icon" onclick="clearAIChat()" title="清空对话">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+        <button class="ai-btn-icon" onclick="toggleAIChat()" title="关闭面板">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 快捷建议提问标签栏 -->
+    <div class="ai-quick-bar">
+      <button class="ai-chip" onclick="askQuickPrompt('iPhone 17 Pro Max 颜色和内存占比如何？')">🎨 17 Pro Max 颜色与内存</button>
+      <button class="ai-chip" onclick="askQuickPrompt('iPhone 17 哪种颜色和版本最畅销？')">📱 iPhone 17 颜色与存储</button>
+      <button class="ai-chip" onclick="askQuickPrompt('iPhone Air 颜色和版本分布情况')">🪶 iPhone Air mixList</button>
+      <button class="ai-chip" onclick="askQuickPrompt('顾客问的最多的问题是什么？')">🔥 全量问得最多 TOP 榜</button>
+      <button class="ai-chip" onclick="askQuickPrompt('以旧换新用户最关心什么？')">🔄 以旧换新问题聚类</button>
+      <button class="ai-chip" onclick="askQuickPrompt('iPhone 16 Pro 2024/9/10 的顾客数是多少？')">🎯 16 Pro 9.10 顾客数</button>
+    </div>
+
+    <!-- 消息对话区域 -->
+    <div class="ai-messages-container" id="ai-messages-container">
+      <div class="ai-msg-row assistant">
+        <div class="ai-msg-bubble">
+          <p>您好！我是 <strong>NPI VOC 全维度智能分析助手</strong> 👋</p>
+          <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+            我已完整索引底层 JSON 包含的<strong>全部数据节点</strong>：包含 <code>mixList</code>（颜色/内存/版本/数量）、<code>overviewList</code>（客流与咨询量）、<code>cvrList</code>（转化率）、<code>fallDataList</code>（跨代流转对标）以及 <code>intentDetailList</code>（四级意图与真实原声问句）！
+          </p>
+          <div class="ai-insight-bullet" style="margin-top: 8px;">
+            💡 <strong>全场景提问支持</strong>：
+            <br/>• <strong>产品规格 (mixList)</strong>：<em>“17 Pro Max 哪种颜色最火？”</em>、<em>“各机型 256G 占比多少”</em>
+            <br/>• <strong>全局热点</strong>：<em>“顾客问得最多的问题是什么？”</em>
+            <br/>• <strong>意图下钻聚类</strong>：<em>“以旧换新/国补/发货用户最关心什么”</em>
+            <br/>• <strong>指标计算</strong>：<em>“iPhone 16 Pro 2024/9/10 顾客数”</em>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部输入框 -->
+    <div class="ai-input-wrapper">
+      <div class="ai-input-bar">
+        <input type="text" id="ai-input-field" class="ai-input-field" placeholder="提问：颜色/内存mixList、意图原声聚类、机型指标计算..." onkeydown="handleAIKeyDown(event)" />
+        <button class="ai-send-btn" onclick="sendUserMessage()" title="发送">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="ai-input-hint">Enter 快速发送 · 全面支持 mixList 颜色内存 / 意图聚类 / 指标计算</div>
+    </div>
+  </aside>
+
+    <!-- MCP 实时取数展示弹窗 -->
+    <div id="mcp-modal" class="mcp-modal-overlay" onclick="if(event.target === this) closeMCPModal()">
+        <div class="mcp-modal-box">
+            <div class="mcp-modal-header">
+                <div class="mcp-modal-title">
+                    <span>⚡ VOC MCP 实时取数控制台</span>
+                    <span class="ai-live-badge" id="mcp-modal-badge">Live Connected</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="mcp-btn" onclick="refreshCurrentMCPTab()">🔄 重新调用 MCP 取数</button>
+                    <button class="ai-btn-icon" onclick="closeMCPModal()">✕</button>
+                </div>
+            </div>
+            <div class="mcp-modal-tabs">
+                <button class="mcp-modal-tab-btn active" onclick="switchMCPTab('kpi', this)">📊 核心 KPI (voc_npi_kpi)</button>
+                <button class="mcp-modal-tab-btn" onclick="switchMCPTab('inquiries', this)">🔍 原声高频检索 (search_inquiries)</button>
+                <button class="mcp-modal-tab-btn" onclick="switchMCPTab('price', this)">💰 价格专项 (voc_npi_price_related)</button>
+                <button class="mcp-modal-tab-btn" onclick="switchMCPTab('mix', this)">🎨 规格分布 (query_voc mixList)</button>
+                <button class="mcp-modal-tab-btn" onclick="switchMCPTab('dimensions', this)">🧭 维度覆盖 (voc_dimensions)</button>
+            </div>
+            <div class="mcp-modal-body" id="mcp-modal-body">
+                <div style="color: #666; text-align: center; padding: 40px;">正在通过 VOC MCP 请求数据...</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
