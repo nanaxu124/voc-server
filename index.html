@@ -1,1 +1,126 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NPI Dashboard</title><link rel="stylesheet" href="./template.css"><style>html,body{height:100%;padding:0}.shell{height:100%;display:flex;flex-direction:column}.top-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 40px;background:#f8f9fa;border-bottom:1px solid #eaeaea}.dropdown-group{display:flex;gap:24px}.top-select{border:0;background:transparent;font-weight:600;font-size:14px}.nav-container{display:flex;justify-content:center;padding:20px 40px}.tabs{display:inline-flex;background:#fff;border-radius:50px;padding:6px;box-shadow:0 2px 10px rgba(0,0,0,.05)}.tab-btn{border:0;background:transparent;padding:10px 24px;color:#666;font-weight:600;font-size:15px;border-radius:50px;cursor:pointer}.tab-btn.active{background:linear-gradient(90deg,#4b9fff,#5dc4ff);color:#fff;box-shadow:0 4px 10px rgba(75,159,255,.3)}iframe{width:100%;flex:1;border:0;display:block}.ai-bubble{position:fixed;right:28px;bottom:28px;padding:12px 18px;border-radius:28px;color:#fff;background:linear-gradient(135deg,#0071e3,#af52de,#ff2d55);font-weight:700;box-shadow:0 10px 26px rgba(175,82,222,.35);cursor:pointer;z-index:20}.drawer{position:fixed;right:0;top:0;bottom:0;width:420px;background:#fff;border-left:1px solid #e5e5ea;box-shadow:-10px 0 40px rgba(0,0,0,.09);transform:translateX(100%);transition:.25s;z-index:30;display:flex;flex-direction:column}.drawer.show{transform:translateX(0)}.drawer-head{padding:16px 18px;border-bottom:1px solid #e5e5ea;display:flex;justify-content:space-between}.messages{flex:1;overflow:auto;padding:16px}.input-row{display:flex;gap:8px;padding:14px;border-top:1px solid #e5e5ea}.input-row input{flex:1;border:1px solid #d1d1d6;border-radius:20px;padding:10px 14px}.msg{padding:10px 12px;border-radius:12px;margin-bottom:10px;background:#f7f8fa;font-size:13px}.msg.user{background:#0071e3;color:#fff;margin-left:60px}</style></head><body><div class="shell"><div class="top-bar"><div class="dropdown-group"><select class="top-select" id="npiSelect"><option>FY25 Fall NPI</option><option>FY26 Spring NPI</option></select><select class="top-select" id="productSelect"><option>iPhone 17 Series</option><option>Watch Series</option><option>MacBook Pro M5</option><option>iPad Pro M5</option></select></div><div id="dataDate" class="muted">Data loading...</div></div><div class="nav-container"><div class="tabs" id="tabs"></div></div><iframe id="dashboardFrame"></iframe></div><div class="ai-bubble" onclick="toggleAI()">AI 智能问答 · VOC</div><aside class="drawer" id="drawer"><div class="drawer-head"><strong>VOC 智能分析助手</strong><button onclick="toggleAI()">×</button></div><div class="messages" id="messages"><div class="msg">可基于当前 VOC MCP 数据进行分析。</div></div><div class="input-row"><input id="aiInput" placeholder="提问当前 NPI VOC 数据..." onkeydown="if(event.key==='Enter')sendAI()"><button onclick="sendAI()">发送</button></div></aside><script>const pages={"Overview":"npi_overview.html","Intent details":"npi_intent_details.html","Product mix":"npi_product_mix.html","Price related":"npi_price_related.html"};let current='Intent details';function renderTabs(){const t=document.getElementById('tabs');t.innerHTML='';Object.keys(pages).forEach(name=>{const b=document.createElement('button');b.className='tab-btn'+(name===current?' active':'');b.textContent=name;b.onclick=()=>{current=name;renderTabs();loadPage()};t.appendChild(b)})}function loadPage(){const f=document.getElementById('dashboardFrame');f.src=pages[current];document.getElementById('dataDate').textContent='Data loading...';f.onload=()=>{try{const el=f.contentDocument.getElementById('data-timestamp');document.getElementById('dataDate').textContent=el?.textContent||'VOC MCP'}catch(e){document.getElementById('dataDate').textContent='VOC MCP'}}}function toggleAI(){document.getElementById('drawer').classList.toggle('show')}function append(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;document.getElementById('messages').appendChild(d)}async function sendAI(){const i=document.getElementById('aiInput');const q=i.value.trim();if(!q)return;append('user',q);i.value='';try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,model:'gemini-2.5-flash'})});const j=await r.json();append('',j.answer||j.error||'No response')}catch(e){append('','请求失败：'+e.message)}}renderTabs();loadPage();</script></body></html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NPI Dashboard</title>
+<link rel="stylesheet" href="./template.css">
+<script src="./dashboard_state.js"></script>
+<style>
+html,body{height:100%;padding:0}.shell{height:100%;display:flex;flex-direction:column}.top-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 40px;background:#f8f9fa;border-bottom:1px solid #eaeaea}.dropdown-group{display:flex;gap:24px}.top-select{border:0;background:transparent;font-weight:600;font-size:14px;min-width:160px}.nav-container{display:flex;justify-content:center;padding:20px 40px}.tabs{display:inline-flex;background:#fff;border-radius:50px;padding:6px;box-shadow:0 2px 10px rgba(0,0,0,.05)}.tab-btn{border:0;background:transparent;padding:10px 24px;color:#666;font-weight:600;font-size:15px;border-radius:50px;cursor:pointer}.tab-btn.active{background:linear-gradient(90deg,#4b9fff,#5dc4ff);color:#fff;box-shadow:0 4px 10px rgba(75,159,255,.3)}iframe{width:100%;flex:1;border:0;display:block}.ai-bubble{position:fixed;right:28px;bottom:28px;padding:12px 18px;border-radius:28px;color:#fff;background:linear-gradient(135deg,#0071e3,#af52de,#ff2d55);font-weight:700;box-shadow:0 10px 26px rgba(175,82,222,.35);cursor:pointer;z-index:20}.drawer{position:fixed;right:0;top:0;bottom:0;width:420px;background:#fff;border-left:1px solid #e5e5ea;box-shadow:-10px 0 40px rgba(0,0,0,.09);transform:translateX(100%);transition:.25s;z-index:30;display:flex;flex-direction:column}.drawer.show{transform:translateX(0)}.drawer-head{padding:16px 18px;border-bottom:1px solid #e5e5ea;display:flex;justify-content:space-between}.messages{flex:1;overflow:auto;padding:16px}.input-row{display:flex;gap:8px;padding:14px;border-top:1px solid #e5e5ea}.input-row input{flex:1;border:1px solid #d1d1d6;border-radius:20px;padding:10px 14px}.msg{padding:10px 12px;border-radius:12px;margin-bottom:10px;background:#f7f8fa;font-size:13px}.msg.user{background:#0071e3;color:#fff;margin-left:60px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top-bar">
+    <div class="dropdown-group">
+      <select class="top-select" id="npiSelect"></select>
+      <select class="top-select" id="productSelect"></select>
+    </div>
+    <div id="dataDate" class="muted">Data loading...</div>
+  </div>
+  <div class="nav-container"><div class="tabs" id="tabs"></div></div>
+  <iframe id="dashboardFrame"></iframe>
+</div>
+<div class="ai-bubble" onclick="toggleAI()">AI 智能问答 · VOC</div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head"><strong>VOC 智能分析助手</strong><button onclick="toggleAI()">×</button></div>
+  <div class="messages" id="messages"><div class="msg">可基于当前 VOC MCP 数据进行分析。</div></div>
+  <div class="input-row"><input id="aiInput" placeholder="提问当前 NPI VOC 数据..." onkeydown="if(event.key==='Enter')sendAI()"><button onclick="sendAI()">发送</button></div>
+</aside>
+<script>
+const CONFIG={
+  npiToProducts:{
+    'FY26 Spring NPI':['MacBook Neo','MacBook Air M5','MacBook Pro M5 Pro/Max','iPhone 17e','iPad Air M4'],
+    'FY25 Fall NPI':['iPhone 17 Series','Watch Series','MacBook Pro M5','iPad Pro M5']
+  },
+  productsData:{
+    'iPhone 17 Series':{dataDate:'2025.09.12',dashboards:{'Overview':'npi_overview.html','Intent details':'npi_intent_details.html','Product mix':'npi_product_mix.html','Price related':'npi_price_related.html'}},
+    'Watch Series':{dataDate:'2024.11.20',dashboards:{}},
+    'MacBook Pro M5':{dataDate:'2026.03.01',dashboards:{}},
+    'iPad Pro M5':{dataDate:'2026.04.15',dashboards:{}},
+    'MacBook Neo':{dataDate:'2026.04.15',dashboards:{}},
+    'MacBook Air M5':{dataDate:'2026.04.15',dashboards:{}},
+    'MacBook Pro M5 Pro/Max':{dataDate:'2026.04.15',dashboards:{}},
+    'iPhone 17e':{dataDate:'2026.04.15',dashboards:{}},
+    'iPad Air M4':{dataDate:'2026.04.15',dashboards:{}}
+  }
+};
+const tabs=['Overview','Intent details','Product mix','Price related'];
+let current=sessionStorage.getItem('voc-dashboard-tab')||'Intent details';
+let state=VOCDashboardState.read();
+
+function normalizeParentState(){
+  const npis=Object.keys(CONFIG.npiToProducts);
+  if(!npis.includes(state.npi))state.npi='FY25 Fall NPI';
+  const products=CONFIG.npiToProducts[state.npi]||[];
+  if(!products.includes(state.product))state.product=products[0]||'';
+  state=VOCDashboardState.save(state);
+}
+function renderNPI(){
+  npiSelect.innerHTML=Object.keys(CONFIG.npiToProducts).map(x=>`<option value="${x}">${x}</option>`).join('');
+  npiSelect.value=state.npi;
+}
+function renderProduct(){
+  const products=CONFIG.npiToProducts[state.npi]||[];
+  productSelect.innerHTML=products.map(x=>`<option value="${x}">${x}</option>`).join('');
+  productSelect.value=state.product;
+}
+function renderTabs(){
+  tabs.innerHTML='';
+}
+function drawTabs(){
+  const root=document.getElementById('tabs');root.innerHTML='';
+  for(const name of tabs){
+    const b=document.createElement('button');b.className='tab-btn'+(name===current?' active':'');b.textContent=name;
+    b.onclick=()=>{current=name;sessionStorage.setItem('voc-dashboard-tab',current);drawTabs();loadPage();};root.appendChild(b);
+  }
+}
+function childQuery(){return VOCDashboardState.toQuery(state,['npi','product','fw','date_from','date_to','npi_sublobs','n1_sublobs']);}
+function loadPage(){
+  const iframe=document.getElementById('dashboardFrame');
+  const productData=CONFIG.productsData[state.product];
+  const page=productData?.dashboards?.[current];
+  document.getElementById('dataDate').textContent='Data loading...';
+  if(!page){
+    iframe.removeAttribute('src');
+    iframe.srcdoc='<div style="font-family:-apple-system;padding:48px;color:#6e6e73;text-align:center">当前产品暂未配置 Dashboard</div>';
+    document.getElementById('dataDate').textContent='';
+    return;
+  }
+  iframe.removeAttribute('srcdoc');
+  iframe.src=page+'?'+childQuery().toString();
+  iframe.onload=()=>{
+    try{
+      const el=iframe.contentDocument.getElementById('data-timestamp');
+      const text=el?.textContent;
+      if(text&&text!=='Data loading...')document.getElementById('dataDate').textContent=text;
+      else document.getElementById('dataDate').textContent='Data as of '+productData.dataDate;
+    }catch(_){document.getElementById('dataDate').textContent='Data as of '+productData.dataDate;}
+  };
+}
+
+npiSelect.onchange=()=>{
+  state.npi=npiSelect.value;
+  const products=CONFIG.npiToProducts[state.npi]||[];
+  if(!products.includes(state.product))state.product=products[0]||'';
+  state=VOCDashboardState.save(state);renderProduct();loadPage();
+};
+productSelect.onchange=()=>{state.product=productSelect.value;state=VOCDashboardState.save(state);loadPage();};
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||!event.data)return;
+  if(event.data.type==='voc-dashboard-state'){
+    state=VOCDashboardState.save(event.data.patch||{});
+    if(event.data.patch?.npi||event.data.patch?.product){normalizeParentState();renderNPI();renderProduct();}
+  }
+  if(event.data.type==='voc-dashboard-meta'&&event.data.text){document.getElementById('dataDate').textContent=event.data.text;}
+});
+
+function toggleAI(){document.getElementById('drawer').classList.toggle('show')}
+function append(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;document.getElementById('messages').appendChild(d)}
+async function sendAI(){const i=document.getElementById('aiInput');const q=i.value.trim();if(!q)return;append('user',q);i.value='';try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,model:'gemini-2.5-flash'})});const j=await r.json();append('',j.answer||j.error||'No response')}catch(e){append('','请求失败：'+e.message)}}
+
+normalizeParentState();renderNPI();renderProduct();drawTabs();loadPage();
+</script>
+</body>
+</html>
