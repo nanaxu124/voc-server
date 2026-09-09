@@ -6,9 +6,6 @@ from .mcp import call_voc_mcp
 
 
 def llm_chat(query, model):
-    if not LLM_BASE_URL:
-        raise RuntimeError("VOC_LLM_BASE_URL is not configured")
-
     lowered = query.lower()
     tool = "voc_npi_kpi"
     if any(key in lowered for key in ("price", "价格", "差价")):
@@ -28,8 +25,9 @@ def llm_chat(query, model):
         ],
         "max_tokens": 1600,
     }
+    endpoint = f"{LLM_BASE_URL}/{model}/v1/chat/completions"
     request = urllib.request.Request(
-        LLM_BASE_URL,
+        endpoint,
         data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
