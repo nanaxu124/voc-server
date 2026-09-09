@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local configuration / credentials
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts
+*.log
+*.pid
+out*.txt
+mcp_*_output.json
+
+# Browser / OS artifacts
+chromedriver/
+.DS_Store
+__MACOSX/
+
+# Local archives and scratch patches
+*.tar
+*.tar.gz
+*.zip
+fix_*.py
+patch_*.py
+query_db*.py
+query_intent*.py
+
+# Editors
+.vscode/
+.idea/

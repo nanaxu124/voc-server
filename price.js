@@ -1,0 +1,1 @@
+async function load(){setState('正在调用 voc_npi_price_related…');try{const j=await getJSON(`/api/mcp/price_data?${params()}`),d=j.data||{};$('rows').innerHTML=table(d.rows||[],150);$('raw').innerHTML=raw(j.raw_text);setState(`已更新 · ${j.source}`)}catch(e){setState(e.message,true)}}bindReload(load);load();
